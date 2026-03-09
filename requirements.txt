@@ -1,0 +1,35 @@
+# ===================================================
+# JARVIS - Requirements
+# Python 3.11+ required
+# ===================================================
+
+# --- Core AI (Groq LPU — ultra-fast inference) ---
+groq>=0.9.0                    # Groq SDK (LLaMA, Whisper)
+
+# --- Audio Pipeline ---
+pvporcupine>=3.0.2             # Wake word detection (Picovoice)
+pvrecorder>=1.2.2              # Low-latency mic recording (pairs with Porcupine)
+edge-tts>=6.1.12               # Microsoft Edge TTS (free fallback, neural voices)
+elevenlabs>=1.5.0              # ElevenLabs human-grade TTS (free: 10k chars/month)
+
+# --- Data & Validation ---
+pydantic>=2.7.0                # Data validation and settings
+pydantic-settings>=2.3.0       # .env loading with Pydantic
+python-dotenv>=1.0.1           # .env file support
+
+# --- Storage (Memory) ---
+tinydb>=4.8.0                  # JSON-based lightweight DB for conversation memory
+
+# --- System Monitoring ---
+psutil>=5.9.8                  # CPU, RAM, process monitoring
+
+# --- Web & HTTP ---
+httpx>=0.27.0                  # Async HTTP client (weather API, web requests)
+duckduckgo-search>=6.2.0       # Web search fallback (no API key required)
+
+# --- Screen Analysis ---
+Pillow>=10.3.0                 # Screenshot capture for analyze_screen tool
+
+# --- Utilities ---
+rich>=13.7.1                   # Beautiful console output / logging
+aiofiles>=23.2.1               # Async file I/O

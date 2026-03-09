@@ -1,0 +1,16 @@
+{
+  "name": "novo-jarvis",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ui/main.js",
+  "scripts": {
+    "start": "electron ui/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^40.8.0"
+  }
+}
