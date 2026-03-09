@@ -1,0 +1,2 @@
+# JARVIS data directory — stores conversation memory (TinyDB JSON files)
+# This file is intentionally empty — it exists to track the directory in git

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>JARVIS</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <!-- Window drag region: the entire background is draggable -->
+    <div class="close-btn" onclick="window.close ? window.close() : null">✕</div>
+
+    <div class="scene">
+
+        <!-- Arc Reactor Core -->
+        <div class="arc-react">
+
+            <!-- Central orb glow -->
+            <div class="core-orb"></div>
+
+            <!-- Spinning energy rings -->
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+
+            <!-- Outer hexagonal pulse segments -->
+            <div class="hex-seg seg-1"></div>
+            <div class="hex-seg seg-2"></div>
+            <div class="hex-seg seg-3"></div>
+            <div class="hex-seg seg-4"></div>
+            <div class="hex-seg seg-5"></div>
+            <div class="hex-seg seg-6"></div>
+
+            <!-- Energy sparks -->
+            <div class="spark sp-1"></div>
+            <div class="spark sp-2"></div>
+            <div class="spark sp-3"></div>
+            <div class="spark sp-4"></div>
+
+        </div>
+
+    </div>
+
+    <!-- Bottom Status -->
+    <div class="hud-bottom">
+        <div class="hud-line"></div>
+        <span id="status-text">SISTEMA INICIALIZADO</span>
+        <p id="transcript-text"></p>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
