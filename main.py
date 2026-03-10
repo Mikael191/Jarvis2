@@ -421,7 +421,7 @@ class JarvisApp:
             intent = _try_intent_route(user_text)
             if intent:
                 tool_name, tool_args = intent
-                result = await self._tool_executor.execute(tool_name, tool_args)
+                result = await self._tools.execute(tool_name, tool_args)
                 prompt = (
                     f"O usuário digitou: '{user_text}'. "
                     f"A ferramenta '{tool_name}' retornou: {result}. "
@@ -429,7 +429,7 @@ class JarvisApp:
                 )
                 ai_response = await self._groq.send_message(prompt, None)
             else:
-                ai_response = await self._groq.send_message(user_text, self._tool_executor)
+                ai_response = await self._groq.send_message(user_text, self._tools)
 
             if ai_response:
                 self._log("jarvis", ai_response)
@@ -518,7 +518,7 @@ class JarvisApp:
             intent = _try_intent_route(user_input)
             if intent:
                 tool_name, tool_args = intent
-                result = await self._tool_executor.execute(tool_name, tool_args)
+                result = await self._tools.execute(tool_name, tool_args)
                 prompt = (
                     f"O usuário disse: '{user_input}'. "
                     f"Ferramenta '{tool_name}' executada, resultado: {result}. "
@@ -527,7 +527,7 @@ class JarvisApp:
                 response = await self._groq.send_message(prompt, None)
             else:
                 response = await self._groq.send_message(
-                    user_input, self._tool_executor
+                    user_input, self._tools
                 )
 
             _print_jarvis(response)

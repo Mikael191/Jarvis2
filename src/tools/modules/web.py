@@ -32,20 +32,15 @@ async def search_web(query: str) -> dict[str, Any]:
         if not results:
             return {"success": True, "output": "No results found.", "error": ""}
 
-        formatted_results = "
-
-".join(
+        formatted_results = "\n\n".join(
             [
-                f"Title: {r.get('title')}
-URL: {r.get('href')}
-Snippet: {r.get('body')}"
+                f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}"
                 for r in results
             ]
         )
         return {
             "success": True,
-            "output": f"Top {len(results)} results:
-" + formatted_results,
+            "output": f"Top {len(results)} results:\n" + formatted_results,
             "error": "",
         }
     except Exception as exc:
@@ -79,16 +74,12 @@ async def read_website(url: str) -> dict[str, Any]:
             for script in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 script.extract()
 
-            text = soup.get_text(separator="
-", strip=True)
+            text = soup.get_text(separator="\n", strip=True)
 
             # Collapse multiple newlines
             import re
 
-            text = re.sub(r"
-{2,}", "
-
-", text)
+            text = re.sub(r"\n{2,}", "\n\n", text)
 
             # Limit the output length to avoid blowing up the context window
             max_chars = 15000
