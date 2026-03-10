@@ -42,16 +42,19 @@ class MemoryManager:
         self._long_term: dict[str, Any] = self._load_long_term_memory()
 
         logger.info("MemoryManager initialized. DB: %s", db_path)
-        
+
         # Vector Database for Semantic Memory
         self._chroma_collection = None
         try:
             import chromadb
+
             # Disable posthog telemetry
-            chromadb.api.client.SharedSystemClient._identifier = "jarvis" 
+            chromadb.api.client.SharedSystemClient._identifier = "jarvis"
             chroma_dir = db_path.parent / "chroma"
             self._chroma_client = chromadb.PersistentClient(path=str(chroma_dir))
-            self._chroma_collection = self._chroma_client.get_or_create_collection(name="jarvis_memory")
+            self._chroma_collection = self._chroma_client.get_or_create_collection(
+                name="jarvis_memory"
+            )
             logger.info("ChromaDB Vector Memory initialized.")
         except Exception as exc:
             logger.error("Failed to initialize ChromaDB: %s", exc)
@@ -69,7 +72,7 @@ class MemoryManager:
         now = datetime.now(timezone.utc).isoformat()
         self._table.insert({"role": role, "content": content, "timestamp": now})
         logger.debug("Memory: added turn [%s] at %s", role, now)
-        
+
         if self._chroma_collection:
             try:
                 # Add to Vector DB for long-term semantic retrieval
@@ -77,19 +80,22 @@ class MemoryManager:
                 self._chroma_collection.add(
                     documents=[content],
                     metadatas=[{"role": role, "timestamp": now}],
-                    ids=[doc_id]
+                    ids=[doc_id],
                 )
             except Exception as exc:
                 logger.error("Failed to add memory to ChromaDB: %s", exc)
 
-        self._prune()
-
-    def _prune(self) -> None:
-        """Remove turns older than max_minutes to keep DB lean."""
+    def get_old_turns(self) -> list[dict]:
+        """Return turns older than max_minutes."""
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=self._max_minutes)
-        cutoff_iso = cutoff.isoformat()
         Turn = Query()
-        removed = self._table.remove(Turn.timestamp < cutoff_iso)
+        return self._table.search(Turn.timestamp < cutoff.isoformat())
+
+    def remove_old_turns(self) -> None:
+        """Remove turns older than max_minutes."""
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=self._max_minutes)
+        Turn = Query()
+        removed = self._table.remove(Turn.timestamp < cutoff.isoformat())
         if removed:
             logger.debug("Memory: pruned %d old turns.", len(removed))
 
@@ -110,7 +116,7 @@ class MemoryManager:
         # Sort by timestamp, take last max_turns
         recent.sort(key=lambda t: t["timestamp"])
         if len(recent) > self._max_turns:
-            recent = recent[-self._max_turns:]
+            recent = recent[-self._max_turns :]
 
         return [{"role": t["role"], "content": t["content"]} for t in recent]
 
@@ -120,21 +126,22 @@ class MemoryManager:
         """
         if not self._chroma_collection:
             return []
-            
+
         try:
             results = self._chroma_collection.query(
-                query_texts=[query],
-                n_results=n_results
+                query_texts=[query], n_results=n_results
             )
-            
+
             docs = []
             if results and results.get("documents") and results["documents"][0]:
                 for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-                    docs.append({
-                        "content": doc, 
-                        "role": meta.get("role", "unknown"), 
-                        "timestamp": meta.get("timestamp", "")
-                    })
+                    docs.append(
+                        {
+                            "content": doc,
+                            "role": meta.get("role", "unknown"),
+                            "timestamp": meta.get("timestamp", ""),
+                        }
+                    )
             return docs
         except Exception as exc:
             logger.error("Failed to query ChromaDB: %s", exc)

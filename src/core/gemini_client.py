@@ -8,7 +8,7 @@ import asyncio
 import logging
 import json
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -69,11 +69,13 @@ class GeminiClient:
         config = types.GenerateContentConfig(
             system_instruction=self._system_instruction,
             tools=self._tools if self._tools else None,
-            tool_config=types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(
-                    mode="AUTO"
+            tool_config=(
+                types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="AUTO")
                 )
-            ) if self._tools else None,
+                if self._tools
+                else None
+            ),
         )
 
         response_text = ""
@@ -105,12 +107,21 @@ class GeminiClient:
                     except Exception as exc:
                         last_error = exc
                         err_str = str(exc)
-                        is_retryable = "503" in err_str or "429" in err_str or "UNAVAILABLE" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                        is_retryable = (
+                            "503" in err_str
+                            or "429" in err_str
+                            or "UNAVAILABLE" in err_str
+                            or "RESOURCE_EXHAUSTED" in err_str
+                        )
                         if is_retryable and retry < len(retry_delays):
                             wait = retry_delays[retry]
                             logger.warning(
                                 "Retryable error (attempt %d/%d, model=%s): %s — waiting %ds",
-                                retry + 1, len(retry_delays) + 1, model, exc, wait
+                                retry + 1,
+                                len(retry_delays) + 1,
+                                model,
+                                exc,
+                                wait,
                             )
                             await asyncio.sleep(wait)
                         else:
@@ -124,7 +135,6 @@ class GeminiClient:
                 error_msg = "Desculpe, o servidor de IA está congestionado agora. Tente novamente em instantes, Mikael."
                 self._memory.add_turn(role="model", content=error_msg)
                 return error_msg
-
 
             candidate = response.candidates[0] if response.candidates else None
             if not candidate:
@@ -141,7 +151,9 @@ class GeminiClient:
             if not function_calls:
                 # Final text response
                 response_text = response.text or ""
-                logger.debug("Final text response received (%d chars).", len(response_text))
+                logger.debug(
+                    "Final text response received (%d chars).", len(response_text)
+                )
                 break
 
             # ── Agentic loop: execute tool calls ──────────────────────────
@@ -160,7 +172,9 @@ class GeminiClient:
                     result = await tool_executor.execute(fc.name, dict(fc.args))
                     result_json = json.dumps(result, ensure_ascii=False, default=str)
                 except Exception as exc:
-                    logger.error("Tool '%s' execution failed: %s", fc.name, exc, exc_info=True)
+                    logger.error(
+                        "Tool '%s' execution failed: %s", fc.name, exc, exc_info=True
+                    )
                     result_json = json.dumps({"error": str(exc)})
 
                 function_response_parts.append(
@@ -176,7 +190,7 @@ class GeminiClient:
         # Save final model response to memory
         if response_text:
             self._memory.add_turn(role="model", content=response_text)
-        
+
         return response_text
 
     async def send_audio(
@@ -190,7 +204,9 @@ class GeminiClient:
         Useful for STT directly via the Gemini model.
         """
         audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
-        prompt_part = types.Part(text="Transcreva o áudio e responda ao pedido do usuário.")
+        prompt_part = types.Part(
+            text="Transcreva o áudio e responda ao pedido do usuário."
+        )
 
         user_content = types.Content(role="user", parts=[prompt_part, audio_part])
 

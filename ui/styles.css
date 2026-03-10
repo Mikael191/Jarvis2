@@ -1,5 +1,6 @@
 /* ─────────────────────────────────────────────────────────────
-   JARVIS - Arc Reactor UI  (Pure CSS — no external dependencies)
+   JARVIS - Pure Energy Sphere UI
+   Pure Black Background. No HUD. Just the Sphere.
    ───────────────────────────────────────────────────────────── */
 
 *,
@@ -11,351 +12,279 @@
 }
 
 :root {
-    --blue-core: #00dcff;
-    --blue-mid: #0087f0;
-    --blue-outer: #003f8a;
-    --glow-soft: rgba(0, 220, 255, 0.15);
-    --glow-hard: rgba(0, 220, 255, 0.60);
+    /* The intense cyan/blue of J.A.R.V.I.S */
+    --core-light: #e0faff;
+    --neon-cyan: #00d4ff;
+    --deep-blue: #0033cc;
+
+    /* Active States Colors */
+    --green-core: #e0ffee;
+    --green-neon: #00ffaa;
+    --green-deep: #008855;
+
+    --amber-core: #fffce0;
+    --amber-neon: #ffcc00;
+    --amber-deep: #cc5500;
 }
 
 html,
 body {
-    width: 100%;
-    height: 100%;
-    background: #000;
-    color: #fff;
-    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    /* Pure black */
     overflow: hidden;
     -webkit-app-region: drag;
-    /* whole window is draggable */
+    /* Window is draggable */
     user-select: none;
-}
-
-/* ── Close button ─────────────────────────────────────────────── */
-.close-btn {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    z-index: 99;
-    font-size: 14px;
-    color: #444;
-    cursor: pointer;
-    -webkit-app-region: no-drag;
-    transition: color .2s;
-}
-
-.close-btn:hover {
-    color: #00dcff;
-}
-
-/* ── Scene container ──────────────────────────────────────────── */
-.scene {
-    position: absolute;
-    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-/* ── Arc Reactor ──────────────────────────────────────────────── */
-.arc-react {
-    position: relative;
-    width: 240px;
-    height: 240px;
-}
-
-/* ── Central glowing orb ──────────────────────────────────────── */
-.core-orb {
-    position: absolute;
-    inset: 50%;
-    transform: translate(-50%, -50%);
-    width: 70px;
-    height: 70px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 38% 38%, #fff 0%, var(--blue-core) 40%, var(--blue-mid) 100%);
-    box-shadow:
-        0 0 20px 6px var(--blue-core),
-        0 0 50px 15px var(--glow-hard),
-        inset 0 0 20px rgba(255, 255, 255, .5);
-    animation: orb-breathe 3s ease-in-out infinite;
-}
-
-@keyframes orb-breathe {
-
-    0%,
-    100% {
-        transform: translate(-50%, -50%) scale(1);
-    }
-
-    50% {
-        transform: translate(-50%, -50%) scale(1.12);
-    }
-}
-
-/* ── Concentric spinning rings ────────────────────────────────── */
-.ring {
-    position: absolute;
-    inset: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    border: 2px solid transparent;
-}
-
-.ring-1 {
-    width: 105px;
-    height: 105px;
-    border-top-color: var(--blue-core);
-    border-right-color: var(--blue-core);
-    box-shadow: 0 0 10px 2px var(--glow-hard);
-    animation: spin-cw 2.5s linear infinite;
-}
-
-.ring-2 {
-    width: 150px;
-    height: 150px;
-    border-bottom-color: var(--blue-mid);
-    border-left-color: var(--blue-mid);
-    box-shadow: 0 0 12px 2px rgba(0, 135, 240, .5);
-    animation: spin-ccw 4s linear infinite;
-}
-
-.ring-3 {
-    width: 200px;
-    height: 200px;
-    border-top-color: var(--blue-core);
-    border-right-color: transparent;
-    border-bottom-color: var(--blue-core);
-    border-left-color: transparent;
-    box-shadow: 0 0 18px 4px var(--glow-soft);
-    animation: spin-cw 6s linear infinite;
-}
-
-@keyframes spin-cw {
-    to {
-        transform: translate(-50%, -50%) rotate(360deg);
-    }
-}
-
-@keyframes spin-ccw {
-    to {
-        transform: translate(-50%, -50%) rotate(-360deg);
-    }
-}
-
-
-/* ── Hex segments (outer pulsing arcs) ───────────────────────── */
-.hex-seg {
-    position: absolute;
-    inset: 50%;
-    transform-origin: center;
-    width: 240px;
-    height: 240px;
-    border-radius: 50%;
-    border: 1px solid rgba(0, 220, 255, .25);
-    animation: hex-pulse 2s ease-in-out infinite;
-}
-
-.seg-1 {
-    transform: translate(-50%, -50%) rotate(0deg);
-    animation-delay: 0s;
-}
-
-.seg-2 {
-    transform: translate(-50%, -50%) rotate(60deg);
-    animation-delay: .33s;
-}
-
-.seg-3 {
-    transform: translate(-50%, -50%) rotate(120deg);
-    animation-delay: .66s;
-}
-
-.seg-4 {
-    transform: translate(-50%, -50%) rotate(180deg);
-    animation-delay: 1s;
-}
-
-.seg-5 {
-    transform: translate(-50%, -50%) rotate(240deg);
-    animation-delay: 1.33s;
-}
-
-.seg-6 {
-    transform: translate(-50%, -50%) rotate(300deg);
-    animation-delay: 1.66s;
-}
-
-@keyframes hex-pulse {
-
-    0%,
-    100% {
-        opacity: .15;
-        transform: translate(-50%, -50%) scale(1) rotate(var(--r, 0deg));
-    }
-
-    50% {
-        opacity: .45;
-        transform: translate(-50%, -50%) scale(1.015) rotate(var(--r, 0deg));
-    }
-}
-
-
-/* ── Sparks ───────────────────────────────────────────────────── */
-.spark {
-    position: absolute;
-    inset: 50%;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #fff;
-    transform-origin: center;
-    box-shadow: 0 0 6px 2px var(--blue-core);
-    animation: orbit 3s linear infinite;
-}
-
-.sp-1 {
-    animation-delay: 0s;
-    --orbit-r: 55px;
-}
-
-.sp-2 {
-    animation-delay: -.75s;
-    --orbit-r: 55px;
-}
-
-.sp-3 {
-    animation-delay: -1.5s;
-    --orbit-r: 55px;
-}
-
-.sp-4 {
-    animation-delay: -2.25s;
-    --orbit-r: 55px;
-}
-
-@keyframes orbit {
-    from {
-        transform: translate(calc(var(--orbit-r) - 50%), -50%) rotate(0deg);
-        transform: translate(-50%, -50%) rotate(0deg) translateX(var(--orbit-r, 55px));
-    }
-
-    to {
-        transform: translate(-50%, -50%) rotate(360deg) translateX(var(--orbit-r, 55px));
-    }
-}
-
-
-/* ─────────────────────────────────────────────
-   STATES — applied via JS based on IPC events
-   ───────────────────────────────────────────── */
-
-/* IDLE — slow breath, dim rings */
-body.idle .ring-1,
-body.idle .ring-2,
-body.idle .ring-3 {
-    animation-duration: 6s;
-    opacity: .55;
-}
-
-body.idle .core-orb {
-    animation-duration: 4s;
-}
-
-/* LISTENING — rings glow green, orb enlarges */
-body.listening .core-orb {
-    background: radial-gradient(circle at 38% 38%, #fff, #00ffb0 40%, #00c863 100%);
-    box-shadow: 0 0 25px 8px #00ffb0, 0 0 60px 20px rgba(0, 255, 176, .4);
-    animation: orb-breathe .8s ease-in-out infinite;
-}
-
-body.listening .ring-1,
-body.listening .ring-2 {
-    border-color: #00ffb0;
-    box-shadow: 0 0 14px 4px rgba(0, 255, 176, .5);
-    animation-duration: 1.5s;
-}
-
-/* THINKING — yellow/amber, fast spin */
-body.thinking .core-orb {
-    background: radial-gradient(circle at 38% 38%, #fff, #ffe600 40%, #ffa800 100%);
-    box-shadow: 0 0 20px 8px #ffd000, 0 0 50px 20px rgba(255, 200, 0, .4);
-    animation: orb-breathe .4s ease-in-out infinite;
-}
-
-body.thinking .ring-1 {
-    animation-duration: .8s;
-    border-color: #ffd000;
-}
-
-body.thinking .ring-2 {
-    animation-duration: 1.5s;
-    border-color: #ffa800;
-}
-
-body.thinking .ring-3 {
-    animation-duration: 3s;
-    border-color: #ff8400;
-}
-
-/* SPEAKING — bright blue, pulsing outward glow */
-body.speaking .core-orb {
-    animation: speak-pulse .3s ease-in-out infinite alternate;
-}
-
-@keyframes speak-pulse {
-    0% {
-        transform: translate(-50%, -50%) scale(1);
-        box-shadow: 0 0 20px 6px var(--blue-core), 0 0 50px 15px var(--glow-hard);
-    }
-
-    100% {
-        transform: translate(-50%, -50%) scale(1.18);
-        box-shadow: 0 0 35px 12px var(--blue-core), 0 0 90px 30px var(--glow-hard);
-    }
-}
-
-body.speaking .ring-1 {
-    animation-duration: 1s;
-}
-
-body.speaking .ring-2 {
-    animation-duration: 2s;
-}
-
-
-/* ── HUD bottom ───────────────────────────────────────────────── */
-.hud-bottom {
+/* Invisible close button at the top right to still allow exiting */
+.close-btn {
     position: fixed;
-    bottom: 0;
-    left: 0;
+    top: 0;
     right: 0;
-    padding: 0 24px 24px;
-    text-align: center;
+    width: 40px;
+    height: 40px;
+    z-index: 999;
+    cursor: pointer;
     -webkit-app-region: no-drag;
 }
 
-.hud-line {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--blue-core), transparent);
-    margin-bottom: 12px;
-    opacity: .4;
+.scene {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
-#status-text {
-    font-size: .65rem;
-    letter-spacing: 4px;
-    color: var(--blue-core);
-    text-transform: uppercase;
-    opacity: .7;
+/* ── The 3D Energy Sphere ───────────────────────────────── */
+.jarvis-sphere {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 800px;
+    transform-style: preserve-3d;
 }
 
-#transcript-text {
-    font-size: .95rem;
-    font-weight: 300;
-    color: rgba(255, 255, 255, .85);
-    margin-top: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 1.3em;
+/* 1. Outer ambient glow */
+.sphere-glow-outer {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 60%);
+    opacity: 0.15;
+    filter: blur(20px);
+    animation: breathe-outer 4s ease-in-out infinite alternate;
+    transition: background 0.5s;
+}
+
+/* 2. Inner intense glow */
+.sphere-glow-inner {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--neon-cyan) 10%, var(--deep-blue) 60%, transparent 80%);
+    opacity: 0.8;
+    filter: blur(8px);
+    animation: breathe-inner 2s ease-in-out infinite alternate;
+    transition: background 0.5s;
+}
+
+/* 3. Solid glowing core at the very center */
+.sphere-core {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, #ffffff 0%, var(--core-light) 25%, var(--neon-cyan) 80%);
+    box-shadow:
+        0 0 30px 10px var(--neon-cyan),
+        inset -10px -10px 20px rgba(0, 51, 204, 0.8),
+        inset 10px 10px 10px rgba(255, 255, 255, 0.9);
+    animation: core-pulse 1.5s ease-in-out infinite alternate;
+    z-index: 10;
+    transition: box-shadow 0.5s, background 0.5s;
+}
+
+/* 4. Swirling subtle energy lines surrounding the core */
+.energy-ring {
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: rgba(0, 212, 255, 0.8);
+    border-bottom-color: rgba(0, 212, 255, 0.3);
+    mix-blend-mode: screen;
+    transition: border-color 0.5s;
+}
+
+.ring-x {
+    transform: rotateX(65deg) rotateY(0deg);
+    animation: spin-x 4s linear infinite;
+}
+
+.ring-y {
+    transform: rotateX(0deg) rotateY(65deg);
+    animation: spin-y 5s linear infinite;
+}
+
+.ring-z {
+    transform: rotateX(45deg) rotateY(45deg);
+    animation: spin-z 6s linear infinite;
+}
+
+/* ── Keyframes ────────────────────────────────────────── */
+@keyframes breathe-outer {
+    0% {
+        transform: scale(0.9);
+        opacity: 0.1;
+    }
+
+    100% {
+        transform: scale(1.1);
+        opacity: 0.2;
+    }
+}
+
+@keyframes breathe-inner {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+@keyframes core-pulse {
+    0% {
+        transform: scale(0.97);
+    }
+
+    100% {
+        transform: scale(1.03);
+    }
+}
+
+@keyframes spin-x {
+    0% {
+        transform: rotateX(65deg) rotateZ(0deg);
+    }
+
+    100% {
+        transform: rotateX(65deg) rotateZ(360deg);
+    }
+}
+
+@keyframes spin-y {
+    0% {
+        transform: rotateY(65deg) rotateX(0deg);
+    }
+
+    100% {
+        transform: rotateY(65deg) rotateX(360deg);
+    }
+}
+
+@keyframes spin-z {
+    0% {
+        transform: rotateZ(45deg) rotateY(0deg);
+    }
+
+    100% {
+        transform: rotateZ(45deg) rotateY(360deg);
+    }
+}
+
+
+/* ═══════════════════════════════════════════════
+      JARVIS STATES (Listening, Thinking, Speaking)
+   ═══════════════════════════════════════════════ */
+
+/* -- LISTENING (Green) -- */
+body.listening .sphere-glow-outer {
+    background: radial-gradient(circle, var(--green-neon) 0%, transparent 60%);
+}
+
+body.listening .sphere-glow-inner {
+    background: radial-gradient(circle, var(--green-neon) 10%, var(--green-deep) 60%, transparent 80%);
+}
+
+body.listening .sphere-core {
+    background: radial-gradient(circle at 40% 40%, #ffffff 0%, var(--green-core) 25%, var(--green-neon) 80%);
+    box-shadow: 0 0 40px 15px var(--green-neon), inset -10px -10px 20px rgba(0, 136, 85, 0.8), inset 10px 10px 10px rgba(255, 255, 255, 0.9);
+}
+
+body.listening .energy-ring {
+    border-top-color: rgba(0, 255, 170, 0.8);
+    border-bottom-color: rgba(0, 255, 170, 0.3);
+    animation-duration: 2.5s;
+}
+
+/* -- THINKING (Amber / Fast) -- */
+body.thinking .sphere-glow-outer {
+    background: radial-gradient(circle, var(--amber-neon) 0%, transparent 60%);
+}
+
+body.thinking .sphere-glow-inner {
+    background: radial-gradient(circle, var(--amber-neon) 10%, var(--amber-deep) 60%, transparent 80%);
+}
+
+body.thinking .sphere-core {
+    background: radial-gradient(circle at 40% 40%, #ffffff 0%, var(--amber-core) 25%, var(--amber-neon) 80%);
+    box-shadow: 0 0 50px 20px var(--amber-neon), inset -10px -10px 20px rgba(204, 85, 0, 0.8), inset 10px 10px 10px rgba(255, 255, 255, 0.9);
+}
+
+body.thinking .energy-ring {
+    border-top-color: rgba(255, 204, 0, 0.8);
+    border-bottom-color: rgba(255, 204, 0, 0.3);
+    animation-duration: 1.2s;
+    /* Spin extremely fast */
+}
+
+/* -- SPEAKING (Bright Blue Pulse) -- */
+body.speaking .sphere-core {
+    animation: speak-beat 0.15s ease-in-out infinite alternate;
+    box-shadow: 0 0 60px 20px var(--neon-cyan), inset -10px -10px 20px rgba(0, 51, 204, 0.8), inset 10px 10px 10px rgba(255, 255, 255, 0.9);
+}
+
+body.speaking .sphere-glow-inner {
+    animation: speak-aura 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes speak-beat {
+    0% {
+        transform: scale(0.95);
+    }
+
+    100% {
+        transform: scale(1.15);
+        box-shadow: 0 0 80px 30px var(--neon-cyan);
+    }
+}
+
+@keyframes speak-aura {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
 }

@@ -28,6 +28,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class JarvisConfig(BaseSettings):
     """Runtime configuration loaded from .env file."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -35,7 +36,9 @@ class JarvisConfig(BaseSettings):
     )
 
     groq_api_key: str = Field(..., description="Groq API key")
-    picovoice_access_key: str = Field("", description="Picovoice access key for wake word")
+    picovoice_access_key: str = Field(
+        "", description="Picovoice access key for wake word"
+    )
     wake_word_path: str = Field("", description="Path to custom .ppn wake word file")
     tts_voice: str = "pt-BR-AntonioNeural"
     tts_speed: str = "+10%"
@@ -47,13 +50,23 @@ class JarvisConfig(BaseSettings):
     openweathermap_api_key: str = Field("", description="OpenWeatherMap API key")
     # ElevenLabs — sign up free at https://elevenlabs.io
     # You can supply multiple keys separated by commas (e.g. key1,key2) for automatic rotation when credits run out
-    elevenlabs_api_key: str = Field("", description="ElevenLabs API key (free tier: 10k chars/month)")
-    elevenlabs_voice_id: str = Field("", description="ElevenLabs voice ID (default: George)")
+    elevenlabs_api_key: str = Field(
+        "", description="ElevenLabs API key (free tier: 10k chars/month)"
+    )
+    elevenlabs_voice_id: str = Field(
+        "", description="ElevenLabs voice ID (default: George)"
+    )
     # Gemini (Google) - Vision model required for "seeing" the screen (1,500 free requests/day)
-    gemini_api_key: str = Field("", description="Google Gemini API key for Computer Vision")
+    gemini_api_key: str = Field(
+        "", description="Google Gemini API key for Computer Vision"
+    )
+    spotify_client_id: str = Field("", description="Spotify Client ID")
+    spotify_client_secret: str = Field("", description="Spotify Client Secret")
+    spotify_redirect_uri: str = "http://localhost:8888/callback"
 
 
 # ── Log Setup ──────────────────────────────────────────────────────────────────
+
 
 def setup_logging() -> None:
     """Configure structured, daily-rotating file logging + console output."""
@@ -78,7 +91,10 @@ def setup_logging() -> None:
 
     try:
         from rich.logging import RichHandler
-        console_handler = RichHandler(level=logging.INFO, rich_tracebacks=True, show_time=True)
+
+        console_handler = RichHandler(
+            level=logging.INFO, rich_tracebacks=True, show_time=True
+        )
     except ImportError:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
@@ -103,19 +119,59 @@ logger = logging.getLogger("jarvis.main")
 
 _INTENT_PATTERNS: list[tuple[re.Pattern, str, object]] = [
     # Volume: "volume 70", "coloca o volume em 70", "aumenta o volume para 80%"
-    (re.compile(r"(?:volume|som)\s*(?:em|para|a)?\s*(\d+)", re.I),    "set_volume",    lambda m: {"level": int(m.group(1))}),
+    (
+        re.compile(
+            r"^(?:(?:coloca|aumenta)\s+o\s+)?(?:volume|som)\s*(?:em|para|a)?\s*(\d+)\%?$",
+            re.I,
+        ),
+        "set_volume",
+        lambda m: {"level": int(m.group(1))},
+    ),
     # Brightness: "brilho 50", "coloca o brilho em 50"
-    (re.compile(r"brilho\s*(?:em|para|a)?\s*(\d+)", re.I),            "set_brightness", lambda m: {"level": int(m.group(1))}),
+    (
+        re.compile(r"^brilho\s*(?:em|para|a)?\s*(\d+)\%?$", re.I),
+        "set_brightness",
+        lambda m: {"level": int(m.group(1))},
+    ),
     # Get volume: "volume atual", "qual o volume", "quanto ta o volume"
-    (re.compile(r"(?:volume|som)\s+atual|qual\s+(?:e|ta|est[aá])\s+o\s+(?:volume|som)", re.I), "get_volume", lambda m: {}),
+    (
+        re.compile(
+            r"^(?:qual\s+o|quanto\s+ta\s+o|ver)\s+(?:volume|som)",
+            re.I,
+        ),
+        "get_volume",
+        lambda m: {},
+    ),
     # Lock: "bloquear tela", "bloqueia o pc"
-    (re.compile(r"bloquea?r?\s+(?:a\s+)?(?:tela|pc|computador|tudo)", re.I), "lock_screen", lambda m: {}),
+    (
+        re.compile(r"^bloquea?r?\s+(?:a\s+)?(?:tela|pc|computador|tudo)$", re.I),
+        "lock_screen",
+        lambda m: {},
+    ),
     # Next track
-    (re.compile(r"(?:pr[oóô]xim\w*|next|avan[cç]a)\s+(?:m[uú]sica|faixa|track|can[cç]ão)", re.I), "control_media", lambda m: {"action": "next"}),
+    (
+        re.compile(
+            r"^(?:pr[oóô]xim\w*|next|avan[cç]a)\s+(?:m[uú]sica|faixa|track|can[cç]ão)$",
+            re.I,
+        ),
+        "control_media",
+        lambda m: {"action": "next"},
+    ),
     # Previous track
-    (re.compile(r"(?:anterior|previous|voltar|volta)\s+(?:m[uú]sica|faixa|track)", re.I), "control_media", lambda m: {"action": "previous"}),
+    (
+        re.compile(
+            r"^(?:m[uú]sica\s+)?(anterior|previous|voltar|volta)",
+            re.I,
+        ),
+        "control_media",
+        lambda m: {"action": "previous"},
+    ),
     # Play/pause
-    (re.compile(r"^(?:pausar?|play|reproduzir|tocar|continuar?)\s*$", re.I), "control_media", lambda m: {"action": "play_pause"}),
+    (
+        re.compile(r"^(?:pausar?|play|reproduzir|tocar|continuar?)\s*$", re.I),
+        "control_media",
+        lambda m: {"action": "play_pause"},
+    ),
 ]
 
 
@@ -128,12 +184,15 @@ def _try_intent_route(user_input: str) -> tuple[str, dict] | None:
         m = pattern.search(user_input)
         if m:
             args = args_fn(m)
-            logger.info("Intent router matched '%s' → %s(%s)", user_input, tool_name, args)
+            logger.info(
+                "Intent router matched '%s' → %s(%s)", user_input, tool_name, args
+            )
             return tool_name, args
     return None
 
 
 # ── Main Application ───────────────────────────────────────────────────────────
+
 
 class JarvisApp:
     """Central application class that owns and orchestrates all subsystems."""
@@ -151,12 +210,17 @@ class JarvisApp:
         from src.tools.registry import ToolExecutor, GROQ_TOOLS
         from src.core.vision import VisionSystem
         from src.tools import windows_os
+        from src.tools.modules import spotify
 
         # Inject OpenWeatherMap key and VisionSystem into the tools module
         windows_os._OPENWEATHERMAP_API_KEY = config.openweathermap_api_key
-        
+
         self._vision = VisionSystem(gemini_api_key=config.gemini_api_key)
         windows_os._VISION_SYSTEM = self._vision
+
+        spotify._CLIENT_ID = config.spotify_client_id
+        spotify._CLIENT_SECRET = config.spotify_client_secret
+        spotify._REDIRECT_URI = config.spotify_redirect_uri
 
         self._memory = MemoryManager(
             db_path=Path("data") / "memory.json",
@@ -190,7 +254,11 @@ class JarvisApp:
         """Update Jarvis's internal state mechanism."""
         if self._json_ui:
             import json
-            print(json.dumps({"jarvis_ipc": {"type": "state", "status": state}}), flush=True)
+
+            print(
+                json.dumps({"jarvis_ipc": {"type": "state", "status": state}}),
+                flush=True,
+            )
         else:
             logger.debug("State changed to: %s", state)
 
@@ -198,7 +266,13 @@ class JarvisApp:
         """Log conversation trace."""
         if self._json_ui:
             import json
-            print(json.dumps({"jarvis_ipc": {"type": "log", "sender": sender, "text": text}}), flush=True)
+
+            print(
+                json.dumps(
+                    {"jarvis_ipc": {"type": "log", "sender": sender, "text": text}}
+                ),
+                flush=True,
+            )
         else:
             logger.info("[%s] %s", sender.upper(), text)
 
@@ -287,19 +361,113 @@ class JarvisApp:
         await self._tts.speak(ai_response)
         self._set_state("idle")
 
+    async def _passive_vision_loop(self) -> None:
+        """Periodically captures screen context and saves it into Vector DB."""
+        import time
+        from datetime import datetime
+        logger.info("Passive Vision RAG loop started.")
+        while True:
+            await asyncio.sleep(300)  # Every 5 minutes
+
+            if self._vision.enabled and not self._is_processing:
+                try:
+                    img = await asyncio.to_thread(self._vision.capture_screen)
+                    if not img:
+                        continue
+                        
+                    prompt = (
+                        "Descreva em apenas UMA frase curta o que o usuário está "
+                        "fazendo ou visualizando na tela neste exato momento. "
+                        "Sem preâmbulos, seja direto."
+                    )
+                    description = await self._vision.analyze_screen(prompt)
+                    
+                    if description and "Erro" not in description:
+                        logger.info("Passive Vision: %s", description)
+                        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        content = f"[OBSERVAÇÃO VISUAL AUTOMÁTICA das {now_str}]: {description}"
+                        
+                        if self._memory._chroma_collection:
+                            doc_id = f"vis_{datetime.now().timestamp()}"
+                            self._memory._chroma_collection.add(
+                                documents=[content],
+                                metadatas=[{"role": "system", "timestamp": now_str}],
+                                ids=[doc_id]
+                            )
+                except Exception as exc:
+                    logger.error("Passive vision failed: %s", exc)
+
     async def _proactive_loop(self) -> None:
         """
         Background task that allows Jarvis to take proactive actions
         without being explicitly called by the user.
         """
         from datetime import datetime
+        import time
+
         logger.info("Proactive loop started.")
         while True:
-            await asyncio.sleep(60) # Only check conditions once per minute
-            
+            await asyncio.sleep(60)  # Only check conditions once per minute
+
+            # Check persistent reminders
+            try:
+                from src.tools.modules.reminder import _load_reminders, _save_reminders
+                reminders = _load_reminders()
+                now_ts = time.time()
+                pending = []
+                for r in reminders:
+                    if now_ts >= r.get("trigger_time", 0):
+                        msg = r.get("message", "")
+                        logger.info("Reminder triggered: %s", msg)
+                        
+                        # Wait if Jarvis is currently talking or listening
+                        while self._is_processing:
+                            await asyncio.sleep(2)
+                            
+                        self._is_processing = True
+                        try:
+                            self._log("jarvis", f"Lembrete: {msg}")
+                            self._set_state("speaking")
+                            await self._tts.speak(f"Com licença Mikael. Lembrete: {msg}")
+                        finally:
+                            self._set_state("idle")
+                            self._is_processing = False
+                    else:
+                        pending.append(r)
+                        
+                if len(pending) != len(reminders):
+                    _save_reminders(pending)
+            except Exception as exc:
+                logger.error("Error processing reminders: %s", exc)
+
+            # Circular Memory Summarization (convert old turns to long-term facts)
+            try:
+                old_turns = self._memory.get_old_turns()
+                if old_turns and len(old_turns) >= 2:
+                    logger.info("Summarizing %d old memory turns for circular retention...", len(old_turns))
+                    text_to_summarize = "\n".join([f"{t['role'].capitalize()}: {t['content']}" for t in old_turns])
+                    instructions = (
+                        "Você é uma rotina de sistema. Extraia em 1 a 3 frases objetivas o que foi discutido "
+                        "na conversa abaixo para salvar na memória. Fatos sobre o usuário, preferências ou "
+                        "tarefas. Se não houver nada importante (apenas saudações, etc), escreva apenas 'NADA'."
+                    )
+                    now_str = datetime.now().strftime('%d/%m %H:%M')
+                    
+                    summary = await self._groq.summarize_text(instructions, text_to_summarize)
+                    if summary and summary.strip().upper() not in ["NADA", "NADA."]:
+                        logger.info("Memory summary generated: %s", summary)
+                        self._memory.add_to_long_term_list("facts", f"[{now_str}] {summary}")
+                    
+                    self._memory.remove_old_turns()
+                elif old_turns:
+                    # Se tiver só 1 turno, não precisa sumarizar, apenas limpa
+                    self._memory.remove_old_turns()
+            except Exception as exc:
+                logger.error("Error executing memory summarization: %s", exc)
+
             if self._is_processing:
                 continue
-                
+
             now = datetime.now()
             # Simple example: Proactive greeting specifically at these exact hours (minute 0)
             if now.minute == 0 and now.hour in (8, 12, 15, 18, 20):
@@ -322,6 +490,75 @@ class JarvisApp:
                 finally:
                     self._is_processing = False
 
+    # ── Text / IPC Commands ────────────────────────────────────────────────────
+
+    async def _process_text_command(self, user_text: str) -> None:
+        """Process a text command (from IPC), without STT/WakeWord."""
+        if self._is_processing:
+            return
+            
+        self._is_processing = True
+        try:
+            self._set_state("thinking")
+            self._log("user", user_text)
+
+            intent = _try_intent_route(user_text)
+            if intent:
+                tool_name, tool_args = intent
+                result = await self._tool_executor.execute(tool_name, tool_args)
+                prompt = (
+                    f"O usuário digitou: '{user_text}'. "
+                    f"A ferramenta '{tool_name}' retornou: {result}. "
+                    "Confirme brevemente."
+                )
+                ai_response = await self._groq.send_message(prompt, None)
+            else:
+                ai_response = await self._groq.send_message(user_text, self._tool_executor)
+
+            if ai_response:
+                self._log("jarvis", ai_response)
+                self._set_state("speaking")
+                await self._tts.speak(ai_response)
+        except Exception as exc:
+            logger.error("Text command failed: %s", exc)
+        finally:
+            self._set_state("idle")
+            self._is_processing = False
+
+    async def _stdin_ipc_loop(self) -> None:
+        """Background loop to read STDIN for IPC JSON commands from Electron."""
+        import sys
+        import json
+        loop = asyncio.get_running_loop()
+
+        def _read_line():
+            return sys.stdin.readline()
+
+        logger.info("IPC stdin listener started.")
+        while True:
+            line = await loop.run_in_executor(None, _read_line)
+            if not line:
+                logger.info("IPC stdin closed. Exiting IPC Loop.")
+                break
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                data = json.loads(line)
+                if "jarvis_ipc" in data:
+                    ipc = data["jarvis_ipc"]
+                    msg_type = ipc.get("type")
+                    if msg_type == "text_input":
+                        text = ipc.get("text", "")
+                        if text:
+                            # spawn task so we keep reading stdin
+                            asyncio.create_task(self._process_text_command(text))
+            except json.JSONDecodeError:
+                pass
+            except Exception as exc:
+                logger.error("IPC listener error: %s", exc)
+
     # ── Text mode (dev / no microphone) ────────────────────────────────────────
 
     async def _text_mode(self) -> None:
@@ -329,14 +566,20 @@ class JarvisApp:
         logger.info("Starting text mode. Type 'sair' to quit.")
         try:
             from rich.console import Console
+
             console = Console()
+
             def _print_jarvis(text: str) -> None:
                 console.print(f"\n[bold green][JARVIS][/bold green] {text}\n")
+
             def _print_thinking() -> None:
                 console.print("[cyan]Pensando...[/cyan]")
+
         except ImportError:
+
             def _print_jarvis(text: str) -> None:
                 print(f"\n[JARVIS] {text}\n")
+
             def _print_thinking() -> None:
                 print("Pensando...")
 
@@ -367,7 +610,9 @@ class JarvisApp:
                 )
                 response = await self._groq.send_message(prompt, None)
             else:
-                response = await self._groq.send_message(user_input, self._tool_executor)
+                response = await self._groq.send_message(
+                    user_input, self._tool_executor
+                )
 
             _print_jarvis(response)
             await self._tts.speak(response)
@@ -384,32 +629,42 @@ class JarvisApp:
             await self._text_mode()
             return
 
+        loop = asyncio.get_running_loop()
+        proactive_task = loop.create_task(self._proactive_loop())
+        vision_task = loop.create_task(self._passive_vision_loop())
+
+        ipc_task = None
+        if self._json_ui:
+            ipc_task = loop.create_task(self._stdin_ipc_loop())
+
         if not self._config.picovoice_access_key:
-            # When running under Electron (--json-ui) without a wake word key,
-            # we must NOT fall into text mode because stdin is not a real console
-            # and input() will raise EOFError immediately, crashing the process.
             if self._json_ui:
-                logger.warning("PICOVOICE_ACCESS_KEY not set — running in Electron UI mode (no voice).")
+                logger.warning(
+                    "PICOVOICE_ACCESS_KEY not set — running in Electron UI mode (no voice)."
+                )
                 self._set_state("idle")
-                # Start proactive loop and sleep indefinitely
-                loop = asyncio.get_running_loop()
-                proactive_task = loop.create_task(self._proactive_loop())
+                
                 try:
-                    while True:
-                        await asyncio.sleep(1)
+                    await ipc_task
                 except (KeyboardInterrupt, asyncio.CancelledError):
-                    proactive_task.cancel()
+                    pass
                 finally:
+                    ipc_task.cancel()
+                    proactive_task.cancel()
+                    vision_task.cancel()
                     self._memory.close()
                 return
             else:
-                logger.warning("PICOVOICE_ACCESS_KEY not set — falling back to text mode.")
+                logger.warning(
+                    "PICOVOICE_ACCESS_KEY not set — falling back to text mode."
+                )
+                proactive_task.cancel()
+                vision_task.cancel()
                 await self._text_mode()
                 return
 
         from src.audio.wake_word import WakeWordDetector
 
-        loop = asyncio.get_running_loop()
         keyword_paths = None
         keywords = None
 
@@ -431,22 +686,26 @@ class JarvisApp:
         detector.start()
         logger.info("JARVIS is ready. Say 'Jarvis' to activate.")
 
-        # Start proactive background tasks
-        proactive_task = loop.create_task(self._proactive_loop())
-
         try:
-            while True:
-                await asyncio.sleep(1)
+            if ipc_task:
+                await ipc_task
+            else:
+                while True:
+                    await asyncio.sleep(1)
         except (KeyboardInterrupt, asyncio.CancelledError):
             logger.info("Shutdown requested.")
-            proactive_task.cancel()
         finally:
+            if ipc_task:
+                ipc_task.cancel()
+            proactive_task.cancel()
+            vision_task.cancel()
             detector.stop()
             self._memory.close()
             logger.info("JARVIS shut down gracefully.")
 
 
 # ── Entry Point ────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     """Bootstrap JARVIS."""

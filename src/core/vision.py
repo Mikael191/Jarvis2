@@ -4,12 +4,9 @@ Allows the assistant to "see" the screen using mss for screenshots
 and Google Gemini 1.5 Flash for multimodal image analysis.
 """
 
-import io
 import logging
-import time
 from typing import Optional
 
-import requests
 import mss
 from PIL import Image
 
@@ -36,15 +33,17 @@ Regras da análise:
 class VisionSystem:
     def __init__(self, gemini_api_key: str = "") -> None:
         self.enabled = False
-        
+
         if not gemini_api_key:
-            logger.warning("GEMINI_API_KEY not set. Vision capabilities (Screen Awareness) disabled.")
+            logger.warning(
+                "GEMINI_API_KEY not set. Vision capabilities (Screen Awareness) disabled."
+            )
             return
-            
+
         if not genai:
             logger.error("google-generativeai module not found. Vision disabled.")
             return
-            
+
         try:
             genai.configure(api_key=gemini_api_key)
             self._model = genai.GenerativeModel("gemini-1.5-flash-latest")
@@ -61,14 +60,14 @@ class VisionSystem:
                 sct_img = sct.grab(monitor)
                 # Convert to PIL Image
                 img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                
-                # Optional optimization: resize image if it is too massive 
+
+                # Optional optimization: resize image if it is too massive
                 # (e.g., 4k screen) to save upload time to Gemini (let's restrict width to ~1920)
                 if img.width > 1920:
                     ratio = 1920 / img.width
                     new_size = (1920, int(img.height * ratio))
                     img = img.resize(new_size, Image.Resampling.LANCZOS)
-                    
+
                 return img
         except Exception as e:
             logger.error(f"Failed to capture screen: {e}")
@@ -81,13 +80,13 @@ class VisionSystem:
         """
         if not self.enabled:
             return "Erro: O sistema de visão está desativado. Verifique a chave GEMINI_API_KEY no arquivo .env."
-            
+
         img = self.capture_screen()
         if not img:
             return "Erro: Falha ao capturar a tela."
-            
+
         logger.info(f"Analyzing screen with prompt: '{user_prompt}'")
-        
+
         try:
             # We enforce blocking safety settings to not block coding/hacking questions by accident
             safety_settings = {
@@ -96,21 +95,21 @@ class VisionSystem:
                 HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
             }
-            
-            # This is a synchronous call wrapped visually; ideally could use asyncio.to_thread 
+
+            # This is a synchronous call wrapped visually; ideally could use asyncio.to_thread
             # if we wanted it perfectly non-blocking, but for now it's okay.
             import asyncio
-            
+
             def _generate():
                 response = self._model.generate_content(
                     [VISION_PROMPT, f"Usuário: {user_prompt}", img],
-                    safety_settings=safety_settings
+                    safety_settings=safety_settings,
                 )
                 return response.text
-                
+
             prediction = await asyncio.to_thread(_generate)
             return prediction
-            
+
         except Exception as e:
             logger.error(f"Gemini vision error: {e}", exc_info=True)
             return f"Desculpe, senhor. Houve um erro na análise visual: {str(e)}"

@@ -6,9 +6,7 @@ Runs in a background thread and signals the main event loop via asyncio.Event.
 
 import asyncio
 import logging
-import struct
 import threading
-from pathlib import Path
 from typing import Callable, Coroutine, Any
 
 import pvporcupine
@@ -85,7 +83,8 @@ class WakeWordDetector:
                 porcupine = pvporcupine.create(
                     access_key=self._access_key,
                     keyword_paths=self._keyword_paths,
-                    sensitivities=self._sensitivities or [0.7] * len(self._keyword_paths),
+                    sensitivities=self._sensitivities
+                    or [0.7] * len(self._keyword_paths),
                 )
             else:
                 porcupine = pvporcupine.create(
@@ -96,7 +95,7 @@ class WakeWordDetector:
 
             devices = pvrecorder.PvRecorder.get_available_devices()
             indices_to_try = [-1] + list(range(len(devices)))
-            
+
             for idx in indices_to_try:
                 try:
                     recorder = pvrecorder.PvRecorder(
@@ -108,7 +107,9 @@ class WakeWordDetector:
                 except RuntimeError:
                     pass
             else:
-                logger.critical("All microphone attempts failed. Available mics: %s", devices)
+                logger.critical(
+                    "All microphone attempts failed. Available mics: %s", devices
+                )
                 raise RuntimeError("Failed to initialize PvRecorder on any device.")
             recorder.start()
             logger.info(
@@ -121,8 +122,14 @@ class WakeWordDetector:
                 pcm = recorder.read()
                 result = porcupine.process(pcm)
                 if result >= 0:
-                    keyword_detected = self._keywords[result] if result < len(self._keywords) else "custom"
-                    logger.info("Wake word detected: '%s' (index=%d)", keyword_detected, result)
+                    keyword_detected = (
+                        self._keywords[result]
+                        if result < len(self._keywords)
+                        else "custom"
+                    )
+                    logger.info(
+                        "Wake word detected: '%s' (index=%d)", keyword_detected, result
+                    )
                     # Fire the async callback from the main event loop thread-safely
                     asyncio.run_coroutine_threadsafe(self._on_detected(), self._loop)
 

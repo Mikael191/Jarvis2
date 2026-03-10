@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import platform
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,11 @@ def _get_runtime_context(memory: MemoryManager) -> dict[str, str]:
     datetime_str = now.strftime("%A, %d de %B de %Y, %H:%M")
 
     # OS info
-    os_info = f"Windows {platform.version()}" if platform.system() == "Windows" else platform.system()
+    os_info = (
+        f"Windows {platform.version()}"
+        if platform.system() == "Windows"
+        else platform.system()
+    )
 
     # System stats (lightweight — no interval delay)
     try:
@@ -45,7 +49,9 @@ def _get_runtime_context(memory: MemoryManager) -> dict[str, str]:
         "DATETIME": datetime_str,
         "OS_INFO": os_info,
         "SYSTEM_STATS": stats,
-        "LONG_TERM_MEMORY": ltm if ltm else "Nenhuma memória de longo prazo registrada ainda.",
+        "LONG_TERM_MEMORY": (
+            ltm if ltm else "Nenhuma memória de longo prazo registrada ainda."
+        ),
     }
 
 
@@ -86,31 +92,41 @@ class GroqClient:
         """Build the messages list for the API: system prompt + conversation history."""
         messages = [{"role": "system", "content": self._build_system_prompt()}]
         recent_turns = self._memory.get_recent_turns()
-        
+
         for turn in recent_turns:
             role = turn["role"]
             if role == "model":
                 role = "assistant"
             messages.append({"role": role, "content": turn["content"]})
-            
+
         # If there's at least one user message, inject vector memory into the last one
         if messages and messages[-1]["role"] == "user":
             last_query = messages[-1]["content"]
             past_memories = self._memory.search_memory(last_query, n_results=3)
-            
+
             if past_memories:
                 # Filter out memories that are exactly the same as the current query to avoid duplicate echo
-                valid_memories = [m for m in past_memories if m["content"].strip() != last_query.strip()]
-                
+                valid_memories = [
+                    m
+                    for m in past_memories
+                    if m["content"].strip() != last_query.strip()
+                ]
+
                 if valid_memories:
                     memory_context = "Contexto oculto recuperado da memória de longo prazo (Base de Dados Vetorial):\\n"
                     for m in valid_memories:
-                        timestamp = m.get('timestamp', '')[:16].replace("T", " ")
-                        memory_context += f"[{timestamp}] {m['role'].capitalize()}: {m['content']}\\n"
-                    
+                        timestamp = m.get("timestamp", "")[:16].replace("T", " ")
+                        memory_context += (
+                            f"[{timestamp}] {m['role'].capitalize()}: {m['content']}\\n"
+                        )
+
                     # Inject without saving to TinyDB history
-                    messages[-1]["content"] = f"{memory_context}\\n\\n[Fala de Agora]:\\n{last_query}"
-                    logger.debug("Injected %d memories into prompt.", len(valid_memories))
+                    messages[-1][
+                        "content"
+                    ] = f"{memory_context}\\n\\n[Fala de Agora]:\\n{last_query}"
+                    logger.debug(
+                        "Injected %d memories into prompt.", len(valid_memories)
+                    )
 
         return messages
 
@@ -134,6 +150,7 @@ class GroqClient:
         messages = self._build_messages()
         max_iterations = 10
         response_text = ""
+        consecutive_tool_failures = 0
 
         for iteration in range(max_iterations):
             logger.debug("Groq call iteration %d", iteration + 1)
@@ -156,22 +173,46 @@ class GroqClient:
 
             except Exception as exc:
                 err_str = str(exc)
-                if "401" in err_str or "invalid_api_key" in err_str or "AuthenticationError" in type(exc).__name__:
-                    logger.critical("Groq API key inválida! Verifique GROQ_API_KEY no .env.")
+                if (
+                    "401" in err_str
+                    or "invalid_api_key" in err_str
+                    or "AuthenticationError" in type(exc).__name__
+                ):
+                    logger.critical(
+                        "Groq API key inválida! Verifique GROQ_API_KEY no .env."
+                    )
                     error_msg = "Mikael, a chave da API do Groq é inválida. Por favor, corrija no arquivo .env."
                     self._memory.add_turn(role="assistant", content=error_msg)
                     return error_msg
 
-                if "tool_use_failed" in err_str or "tool call validation failed" in err_str:
-                    logger.warning("Groq tool syntax error: %s — retrying with a hint.", exc)
-                    messages.append({
-                        "role": "user",
-                        "content": "System Error: Chamada de ferramenta inválida. Por favor, use o nome exato e argumentos JSON válidos.",
-                    })
+                if (
+                    "tool_use_failed" in err_str
+                    or "tool call validation failed" in err_str
+                ):
+                    consecutive_tool_failures += 1
+                    if consecutive_tool_failures >= 3:
+                        logger.error("Groq tool validation failed 3 times. Aborting.")
+                        error_msg = "Desculpe, ocorreu um erro de formatação lógica interno contínuo."
+                        self._memory.add_turn(role="assistant", content=error_msg)
+                        return error_msg
+
+                    logger.warning(
+                        "Groq tool syntax error: %s — retrying with a hint.", exc
+                    )
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "System Error: Chamada de ferramenta inválida. Por favor, use o nome exato e argumentos JSON válidos.",
+                        }
+                    )
                     continue
 
+                # Reset counter if error is something else
+                consecutive_tool_failures = 0
+
                 is_retryable = any(
-                    code in err_str for code in ("503", "429", "UNAVAILABLE", "rate_limit")
+                    code in err_str
+                    for code in ("503", "429", "UNAVAILABLE", "rate_limit")
                 )
                 if is_retryable:
                     logger.warning("Groq rate limit/error: %s — retrying in 5s", exc)
@@ -189,21 +230,23 @@ class GroqClient:
             # ── Check for tool calls ──────────────────────────────────────────
             if msg.tool_calls and tool_executor:
                 # Append assistant's response with tool calls to messages
-                messages.append({
-                    "role": "assistant",
-                    "content": msg.content or "",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            },
-                        }
-                        for tc in msg.tool_calls
-                    ],
-                })
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in msg.tool_calls
+                        ],
+                    }
+                )
 
                 # Execute each tool call
                 for tc in msg.tool_calls:
@@ -221,14 +264,18 @@ class GroqClient:
                         result = await tool_executor.execute(fn_name, fn_args)
                         result_str = json.dumps(result, ensure_ascii=False, default=str)
                     except Exception as exc:
-                        logger.error("Tool '%s' failed: %s", fn_name, exc, exc_info=True)
+                        logger.error(
+                            "Tool '%s' failed: %s", fn_name, exc, exc_info=True
+                        )
                         result_str = json.dumps({"error": str(exc)})
 
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result_str,
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": result_str,
+                        }
+                    )
 
                 # Loop back to let the model compose a final answer
                 continue
@@ -242,6 +289,27 @@ class GroqClient:
             self._memory.add_turn(role="assistant", content=response_text)
 
         return response_text
+
+    async def summarize_text(self, system_instruction: str, user_text: str) -> str:
+        """
+        Pure generation method without touching conversation history. 
+        Useful for background jobs like circular summarization.
+        """
+        try:
+            response = await asyncio.to_thread(
+                self._client.chat.completions.create,
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_text}
+                ],
+                temperature=0.2,
+                max_tokens=300,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as exc:
+            logger.error("groq_client summarize_text failed: %s", exc)
+            return ""
 
     async def send_audio(
         self,

@@ -10,7 +10,6 @@ import logging
 import struct
 import time
 import wave
-from typing import Callable
 
 import pvrecorder
 
@@ -18,10 +17,10 @@ logger = logging.getLogger("jarvis.audio.speech_to_text")
 
 # Default recording settings
 SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = 500       # RMS amplitude below this = silence
-SILENCE_TIMEOUT = 2.5         # Seconds of silence before stopping
-MAX_RECORD_SECONDS = 30       # Hard cap on recording duration
-FRAME_LENGTH = 512            # Samples per frame for recorder
+SILENCE_THRESHOLD = 500  # RMS amplitude below this = silence
+SILENCE_TIMEOUT = 2.5  # Seconds of silence before stopping
+MAX_RECORD_SECONDS = 30  # Hard cap on recording duration
+FRAME_LENGTH = 512  # Samples per frame for recorder
 
 
 class SpeechToText:
@@ -56,10 +55,13 @@ class SpeechToText:
     async def record(self) -> bytes | None:
         """
         Record audio from the microphone until silence is detected or max duration is reached.
-
-        Returns:
-            WAV-encoded bytes of the recorded speech, or None if nothing was captured.
+        Runs blocking I/O loop in a separate thread.
         """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._blocking_record)
+
+    def _blocking_record(self) -> bytes | None:
+        """Synchronous method to capture audio, run inside an executor."""
         logger.info("Recording started — speak now...")
 
         frames: list[list[int]] = []
@@ -68,7 +70,7 @@ class SpeechToText:
         try:
             devices = pvrecorder.PvRecorder.get_available_devices()
             indices_to_try = [-1] + list(range(len(devices)))
-            
+
             for idx in indices_to_try:
                 try:
                     recorder = pvrecorder.PvRecorder(
@@ -80,8 +82,12 @@ class SpeechToText:
                 except RuntimeError:
                     pass
             else:
-                logger.critical("All STT microphone attempts failed. Available mics: %s", devices)
-                raise RuntimeError("Failed to initialize PvRecorder for STT on any device.")
+                logger.critical(
+                    "All STT microphone attempts failed. Available mics: %s", devices
+                )
+                raise RuntimeError(
+                    "Failed to initialize PvRecorder for STT on any device."
+                )
             recorder.start()
 
             last_speech_time = time.monotonic()
@@ -89,13 +95,7 @@ class SpeechToText:
             has_speech = False
 
             while True:
-                # Yield control so the event loop stays responsive
-                await asyncio.sleep(0)
-
-                # Read a frame (blocking — runs in executor as workaround)
-                frame = await asyncio.get_event_loop().run_in_executor(
-                    None, recorder.read
-                )
+                frame = recorder.read()
                 frames.append(frame)
 
                 rms = self._compute_rms(frame)
@@ -109,7 +109,9 @@ class SpeechToText:
 
                 # Stop conditions
                 if has_speech and silence_duration >= self._silence_timeout:
-                    logger.info("Silence detected after %.1fs. Stopping.", silence_duration)
+                    logger.info(
+                        "Silence detected after %.1fs. Stopping.", silence_duration
+                    )
                     break
                 if elapsed >= self._max_seconds:
                     logger.info("Max recording duration reached (%.1fs).", elapsed)
@@ -158,11 +160,14 @@ class WhisperSTT:
         if self._model is None:
             try:
                 import whisper  # type: ignore
+
                 logger.info("Loading Whisper model '%s'...", self._model_size)
                 self._model = whisper.load_model(self._model_size)
                 logger.info("Whisper model loaded.")
             except ImportError:
-                logger.error("openai-whisper is not installed. Run: pip install openai-whisper")
+                logger.error(
+                    "openai-whisper is not installed. Run: pip install openai-whisper"
+                )
                 raise
 
     async def transcribe(self, audio_bytes: bytes) -> str:
@@ -176,9 +181,8 @@ class WhisperSTT:
             Transcribed text string.
         """
         try:
-            import whisper
-            import numpy as np
-            import tempfile, os
+            import tempfile
+            import os
 
             await asyncio.get_event_loop().run_in_executor(None, self._load_model)
 

@@ -15,7 +15,6 @@ import io
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING
 
 import edge_tts
 
@@ -29,7 +28,7 @@ logger = logging.getLogger("jarvis.audio.text_to_speech")
 #   Josh    → TxGEqnHWrfWFTfGW9XjX  (younger, energetic)
 #   Charlie → IKne3meq5aSn9XLyUdCD  (casual, friendly)
 ELEVENLABS_DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George
-ELEVENLABS_MODEL = "eleven_multilingual_v2"             # Best quality, supports PT-BR
+ELEVENLABS_MODEL = "eleven_multilingual_v2"  # Best quality, supports PT-BR
 
 # ── Edge-TTS defaults (fallback) ───────────────────────────────────────────────
 EDGE_DEFAULT_VOICE = "pt-BR-AntonioNeural"
@@ -68,13 +67,16 @@ class TextToSpeech:
         if elevenlabs_api_key:
             try:
                 from elevenlabs.client import ElevenLabs
+
                 keys = [k.strip() for k in elevenlabs_api_key.split(",") if k.strip()]
                 if keys:
                     self._el_clients = [ElevenLabs(api_key=k) for k in keys]
                     self._use_elevenlabs = True
                     logger.info(
                         "ElevenLabs TTS active with %d key(s). Voice ID: %s | Model: %s",
-                        len(keys), self._el_voice_id, ELEVENLABS_MODEL,
+                        len(keys),
+                        self._el_voice_id,
+                        ELEVENLABS_MODEL,
                     )
             except ImportError:
                 logger.warning(
@@ -138,10 +140,11 @@ class TextToSpeech:
     async def _synthesize_elevenlabs(self, text: str) -> bytes | None:
         """Synthesize via ElevenLabs API with key rotation and return MP3 bytes."""
         last_error = None
-        
+
         while self._el_current_idx < len(self._el_clients):
             current_client = self._el_clients[self._el_current_idx]
             try:
+
                 def _generate() -> bytes:
                     audio_generator = current_client.text_to_speech.convert(
                         text=text,
@@ -151,26 +154,49 @@ class TextToSpeech:
                     )
                     return b"".join(audio_generator)
 
-                audio_bytes = await asyncio.get_running_loop().run_in_executor(None, _generate)
-                logger.debug("ElevenLabs synthesis OK (Key %d): %d bytes", self._el_current_idx, len(audio_bytes))
+                audio_bytes = await asyncio.get_running_loop().run_in_executor(
+                    None, _generate
+                )
+                logger.debug(
+                    "ElevenLabs synthesis OK (Key %d): %d bytes",
+                    self._el_current_idx,
+                    len(audio_bytes),
+                )
                 return audio_bytes
             except Exception as exc:
                 error_str = str(exc).lower()
                 last_error = exc
-                
+
                 # Rotate key if error is related to quota, auth, or limits
-                if any(x in error_str for x in ["quota", "401", "429", "insufficient", "credit", "unauthorized"]):
+                if any(
+                    x in error_str
+                    for x in [
+                        "quota",
+                        "401",
+                        "429",
+                        "insufficient",
+                        "credit",
+                        "unauthorized",
+                    ]
+                ):
                     logger.warning(
-                        "ElevenLabs key at index %d failed (quota/auth). Rotating to next key. Error: %s", 
-                        self._el_current_idx, exc
+                        "ElevenLabs key at index %d failed (quota/auth). Rotating to next key. Error: %s",
+                        self._el_current_idx,
+                        exc,
                     )
                     self._el_current_idx += 1
                 else:
-                    logger.error("ElevenLabs synthesis fatal error (Key %d): %s", self._el_current_idx, exc)
+                    logger.error(
+                        "ElevenLabs synthesis fatal error (Key %d): %s",
+                        self._el_current_idx,
+                        exc,
+                    )
                     break
-                    
+
         if self._el_current_idx >= len(self._el_clients):
-            logger.error("All ElevenLabs keys exhausted or failed. Last error: %s", last_error)
+            logger.error(
+                "All ElevenLabs keys exhausted or failed. Last error: %s", last_error
+            )
 
         return None
 
@@ -252,7 +278,9 @@ class TextToSpeech:
         """List available Edge-TTS voices."""
         voices = await edge_tts.list_voices()
         if language_filter:
-            voices = [v for v in voices if v.get("Locale", "").startswith(language_filter)]
+            voices = [
+                v for v in voices if v.get("Locale", "").startswith(language_filter)
+            ]
         return voices
 
 
@@ -262,6 +290,7 @@ def _clean_for_speech(text: str) -> str:
     Keeps punctuation and natural structure.
     """
     import re
+
     # Remove markdown headers, bold, italic, backticks
     text = re.sub(r"#{1,6}\s+", "", text)
     text = re.sub(r"\*{1,3}([^*]+)\*{1,3}", r"\1", text)
