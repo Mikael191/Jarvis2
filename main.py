@@ -1,17 +1,6 @@
 """
 JARVIS - Main Orchestrator
 Entry point for the JARVIS AI Desktop Assistant.
-
-Startup sequence:
-1. Initialize structured logging (daily rotating log files)
-2. Load config from .env via pydantic-settings
-3. Boot memory manager (TinyDB + long-term memory)
-4. Register Groq tools (function calling)
-5. Initialize Groq client
-6. Initialize TTS engine
-7. Initialize STT engine
-8. (Optional) Start wake word detection loop
-9. Event-driven: on wake word → record → transcribe → AI → speak
 """
 
 import asyncio
@@ -24,7 +13,6 @@ from pathlib import Path
 # ── Configuration ──────────────────────────────────────────────────────────────
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 class JarvisConfig(BaseSettings):
     """Runtime configuration loaded from .env file."""
@@ -72,21 +60,13 @@ def setup_logging() -> None:
     """Configure structured, daily-rotating file logging + console output."""
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
-
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
     file_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=logs_dir / "jarvis.log",
-        when="midnight",
-        backupCount=30,
-        encoding="utf-8",
+        filename=logs_dir / "jarvis.log", when="midnight", backupCount=30, encoding="utf-8"
     )
-    file_handler.setLevel(logging.DEBUG)
-    file_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    file_fmt = logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s")
     file_handler.setFormatter(file_fmt)
 
     try:
@@ -98,24 +78,16 @@ def setup_logging() -> None:
     except ImportError:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(
-            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-        )
+        console_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
-
     for noisy in ("httpx", "httpcore", "urllib3", "asyncio", "edge_tts.communicate"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-
-# ── Logger (declared here so it is available to all module-level code below) ───
 logger = logging.getLogger("jarvis.main")
 
-
 # ── Intent Router ──────────────────────────────────────────────────────────────
-# Detects trivial commands and routes them directly to tools, bypassing the LLM.
-# Reduces response latency from ~2s to near-instant for common OS commands.
 
 _INTENT_PATTERNS: list[tuple[re.Pattern, str, object]] = [
     # Volume: "volume 70", "coloca o volume em 70", "aumenta o volume para 80%"
@@ -174,12 +146,7 @@ _INTENT_PATTERNS: list[tuple[re.Pattern, str, object]] = [
     ),
 ]
 
-
 def _try_intent_route(user_input: str) -> tuple[str, dict] | None:
-    """
-    Match user_input against intent patterns for instant tool dispatch.
-    Returns (tool_name, args) if matched, else None.
-    """
     for pattern, tool_name, args_fn in _INTENT_PATTERNS:
         m = pattern.search(user_input)
         if m:
@@ -190,19 +157,16 @@ def _try_intent_route(user_input: str) -> tuple[str, dict] | None:
             return tool_name, args
     return None
 
-
 # ── Main Application ───────────────────────────────────────────────────────────
 
 
 class JarvisApp:
-    """Central application class that owns and orchestrates all subsystems."""
-
     def __init__(self, config: JarvisConfig, json_ui: bool = False) -> None:
         self._config = config
         self._is_processing = False
         self._json_ui = json_ui
+        self._detector = None
 
-        # Import subsystems
         from src.core.memory_manager import MemoryManager
         from src.core.groq_client import GroqClient
         from src.audio.text_to_speech import TextToSpeech
@@ -227,7 +191,6 @@ class JarvisApp:
             max_turns=config.memory_max_turns,
             max_minutes=config.memory_max_minutes,
         )
-        self._tool_executor = ToolExecutor()
         self._groq = GroqClient(
             api_key=config.groq_api_key,
             model=config.groq_model,
@@ -244,14 +207,10 @@ class JarvisApp:
             sample_rate=config.audio_sample_rate,
             silence_timeout=config.record_silence_timeout,
         )
-
+        self._tools = ToolExecutor()
         self._memory.record_session_start()
-        logger.info("JarvisApp subsystems initialized.")
-
-    # ── Callbacks (real methods — NOT nested functions) ─────────────────────────
 
     def _set_state(self, state: str) -> None:
-        """Update Jarvis's internal state mechanism."""
         if self._json_ui:
             import json
 
@@ -263,7 +222,6 @@ class JarvisApp:
             logger.debug("State changed to: %s", state)
 
     def _log(self, sender: str, text: str) -> None:
-        """Log conversation trace."""
         if self._json_ui:
             import json
 
@@ -276,16 +234,10 @@ class JarvisApp:
         else:
             logger.info("[%s] %s", sender.upper(), text)
 
-    # ── Voice pipeline ──────────────────────────────────────────────────────────
-
     async def _on_wake_word(self) -> None:
-        """Called on wake word detection. Interrupts TTS if speaking."""
         if self._is_processing:
-            # Interrupt ongoing TTS so Jarvis listens immediately
             self._tts.stop()
-            logger.debug("Wake word during processing — TTS interrupted.")
             return
-
         self._is_processing = True
         try:
             await self._handle_voice_command()
@@ -293,23 +245,14 @@ class JarvisApp:
             self._is_processing = False
 
     async def _handle_voice_command(self) -> None:
-        """Full pipeline: record → STT → (intent router OR LLM) → TTS."""
         import io
-
-        logger.info("Wake word triggered. Recording...")
         self._set_state("listening")
-        self._log("system", "Wake word detectado. Gravando...")
-
-        # 1. Record voice
         audio_bytes = await self._stt.record()
         if not audio_bytes:
-            logger.info("No speech captured.")
             self._set_state("idle")
             return
 
         self._set_state("thinking")
-
-        # 2. Transcribe via Groq Whisper
         audio_buffer = io.BytesIO(audio_bytes)
         audio_buffer.name = "audio.wav"
         try:
@@ -322,7 +265,7 @@ class JarvisApp:
             )
             user_text = str(transcription).strip()
         except Exception as exc:
-            logger.error("STT failed: %s", exc, exc_info=True)
+            logger.error("STT failed: %s", exc)
             self._set_state("idle")
             return
 
@@ -330,35 +273,20 @@ class JarvisApp:
             self._set_state("idle")
             return
 
-        logger.info("User said: '%s'", user_text[:100])
         self._log("user", user_text)
-
-        # 3. Intent router (fast path — skips LLM call)
         intent = _try_intent_route(user_text)
         if intent:
             tool_name, tool_args = intent
-            result = await self._tool_executor.execute(tool_name, tool_args)
-            # Generate a brief confirmation via LLM
-            prompt = (
-                f"O usuário disse: '{user_text}'. "
-                f"A ferramenta '{tool_name}' foi chamada com resultado: {result}. "
-                "Confirme brevemente o que foi feito em no máximo 1 frase curta."
-            )
+            result = await self._tools.execute(tool_name, tool_args)
+            prompt = f"O usuário disse: '{user_text}'. Ferramenta '{tool_name}' resultou em: {result}. Responda em uma frase curta."
             ai_response = await self._groq.send_message(prompt, None)
         else:
-            # 4. Full LLM pipeline with tool calling
-            ai_response = await self._groq.send_message(user_text, self._tool_executor)
+            ai_response = await self._groq.send_message(user_text, self._tools)
 
-        if not ai_response:
-            self._set_state("idle")
-            return
-
-        self._log("jarvis", ai_response)
-        logger.info("JARVIS response: '%s'", ai_response[:100])
-
-        # 5. Speak
-        self._set_state("speaking")
-        await self._tts.speak(ai_response)
+        if ai_response:
+            self._log("jarvis", ai_response)
+            self._set_state("speaking")
+            await self._tts.speak(ai_response)
         self._set_state("idle")
 
     async def _passive_vision_loop(self) -> None:
@@ -398,10 +326,6 @@ class JarvisApp:
                     logger.error("Passive vision failed: %s", exc)
 
     async def _proactive_loop(self) -> None:
-        """
-        Background task that allows Jarvis to take proactive actions
-        without being explicitly called by the user.
-        """
         from datetime import datetime
         import time
 
@@ -469,24 +393,16 @@ class JarvisApp:
                 continue
 
             now = datetime.now()
-            # Simple example: Proactive greeting specifically at these exact hours (minute 0)
             if now.minute == 0 and now.hour in (8, 12, 15, 18, 20):
                 self._is_processing = True
                 try:
-                    logger.info("Triggering proactive time-based action...")
-                    prompt = (
-                        f"System Event: It is now {now.hour}:00. "
-                        "Traga uma fala proativa, curta e natural avisando o usuário sobre a hora, "
-                        "e sugira algo (ex: almoço, beber água, pausa, boa noite). Sem formatação."
-                    )
+                    prompt = f"System Event: It is {now.hour}:00. Dê uma saudação proativa e curta."
                     ai_response = await self._groq.send_message(prompt, None)
                     if ai_response:
                         self._log("jarvis", "Ação Proativa: " + ai_response)
-                        self._set_state("speaking")
                         await self._tts.speak(ai_response)
-                        self._set_state("idle")
-                except Exception as exc:
-                    logger.error("Proactive action failed: %s", exc)
+                except Exception as e:
+                    logger.error("Proactive error: %s", e)
                 finally:
                     self._is_processing = False
 
@@ -620,11 +536,7 @@ class JarvisApp:
     # ── Run ────────────────────────────────────────────────────────────────────
 
     async def run(self, text_mode: bool = False) -> None:
-        """Main async run loop."""
-        logger.info("=" * 60)
-        logger.info("JARVIS starting. Model: %s", self._config.groq_model)
-        logger.info("=" * 60)
-
+        logger.info("JARVIS starting...")
         if text_mode:
             await self._text_mode()
             return
@@ -677,10 +589,9 @@ class JarvisApp:
 
         detector = WakeWordDetector(
             access_key=self._config.picovoice_access_key,
-            loop=loop,
+            loop=asyncio.get_running_loop(),
             on_detected=self._on_wake_word,
-            keywords=keywords,
-            keyword_paths=keyword_paths,
+            on_failure=self._on_wake_word_failure
         )
 
         detector.start()
@@ -703,29 +614,30 @@ class JarvisApp:
             self._memory.close()
             logger.info("JARVIS shut down gracefully.")
 
-
-# ── Entry Point ────────────────────────────────────────────────────────────────
+    async def _on_wake_word_failure(self, exc: Exception) -> None:
+        error_msg = str(exc)
+        msg = "ERRO Picovoice: Limite atingido ou chave inválida." if "Activation" in error_msg else f"ERRO voz: {error_msg}"
+        logger.error(msg)
+        print(f"\n[AVISO] {msg}\n[SISTEMA] Continuando apenas via TEXTO.")
+        if self._json_ui:
+            import json
+            print(json.dumps({"jarvis_ipc": {"type": "voice_error", "message": msg}}), flush=True)
 
 
 def main() -> None:
-    """Bootstrap JARVIS."""
     setup_logging()
-
     try:
         config = JarvisConfig()
     except Exception as exc:
         print(f"[FATAL] Configuration error: {exc}")
-        print("Copy .env.example to .env and fill in required values.")
         sys.exit(1)
 
     app = JarvisApp(config, json_ui="--json-ui" in sys.argv)
     text_mode = "--text" in sys.argv
-
     try:
         asyncio.run(app.run(text_mode=text_mode))
     except KeyboardInterrupt:
-        logger.info("JARVIS terminated by user.")
-
+        pass
 
 if __name__ == "__main__":
     main()

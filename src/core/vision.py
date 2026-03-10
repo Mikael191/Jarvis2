@@ -46,7 +46,7 @@ class VisionSystem:
 
         try:
             genai.configure(api_key=gemini_api_key)
-            self._model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            self._model = genai.GenerativeModel("gemini-2.0-flash")
             self.enabled = True
             logger.info("Vision System initialized with Gemini 1.5 Flash.")
         except Exception as e:

@@ -37,6 +37,7 @@ class WakeWordDetector:
         access_key: str,
         loop: asyncio.AbstractEventLoop,
         on_detected: Callable[[], Coroutine[Any, Any, None]],
+        on_failure: Optional[Callable[[Exception], Coroutine[Any, Any, None]]] = None,
         keywords: list[str] | None = None,
         keyword_paths: list[str] | None = None,
         sensitivities: list[float] | None = None,
@@ -44,6 +45,7 @@ class WakeWordDetector:
         self._access_key = access_key
         self._loop = loop
         self._on_detected = on_detected
+        self._on_failure = on_failure
         self._keywords = keywords or ["jarvis"]
         self._keyword_paths = keyword_paths
         self._sensitivities = sensitivities
@@ -139,6 +141,8 @@ class WakeWordDetector:
             logger.error("Porcupine error: %s", exc, exc_info=True)
         except Exception as exc:
             logger.error("Wake word detection loop crashed: %s", exc, exc_info=True)
+            if self._on_failure:
+                asyncio.run_coroutine_threadsafe(self._on_failure(exc), self._loop)
         finally:
             if recorder:
                 recorder.delete()

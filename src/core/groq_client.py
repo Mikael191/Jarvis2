@@ -12,6 +12,7 @@ import platform
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import re
 
 import psutil
 from groq import Groq
@@ -253,10 +254,25 @@ class GroqClient:
                     fn_name = tc.function.name
                     try:
                         args_str = tc.function.arguments
-                        fn_args = json.loads(args_str) if args_str else {}
+                        if not args_str:
+                            fn_args = {}
+                        else:
+                            # Tenta arrumar se o groq mandou quebras de linha ou aspas ruins em json
+                            import ast
+                            try:
+                                fn_args = json.loads(args_str)
+                            except json.JSONDecodeError:
+                                # Fallback perigoso mas as vezes salva LLM malformados
+                                try:
+                                    fn_args = ast.literal_eval(args_str)
+                                except Exception:
+                                    logger.warning("AST literal eval falhou para args: %s", args_str)
+                                    fn_args = {}
+                            
                         if not isinstance(fn_args, dict):
                             fn_args = {}
-                    except json.JSONDecodeError:
+                    except Exception as exc:
+                        logger.error("Falha fatal no parse dos args do tool %s: %s", fn_name, exc)
                         fn_args = {}
 
                     logger.info("Executing tool: %s(%s)", fn_name, fn_args)
@@ -280,8 +296,66 @@ class GroqClient:
                 # Loop back to let the model compose a final answer
                 continue
 
+            # ── Check for inline text tool calls (<function=name>{args}</function>) ──
+            text_content = msg.content or ""
+            inline_tool_match = re.search(r"<function=([^>]+)>(.*?)</function>", text_content, re.DOTALL)
+            
+            if inline_tool_match and tool_executor:
+                fn_name = inline_tool_match.group(1).strip()
+                args_str = inline_tool_match.group(2).strip()
+                
+                logger.info("Detected inline tool call in text: %s(%s)", fn_name, args_str)
+                
+                try:
+                    import ast
+                    if not args_str:
+                        fn_args = {}
+                    else:
+                        try:
+                            fn_args = json.loads(args_str)
+                        except json.JSONDecodeError:
+                            fn_args = ast.literal_eval(args_str)
+                    if not isinstance(fn_args, dict):
+                        fn_args = {}
+                except Exception as exc:
+                    logger.error("Failed to parse inline tool args: %s", exc)
+                    fn_args = {}
+                    
+                try:
+                    result = await tool_executor.execute(fn_name, fn_args)
+                    result_str = json.dumps(result, ensure_ascii=False, default=str)
+                except Exception as exc:
+                    logger.error("Inline tool '%s' failed: %s", fn_name, exc, exc_info=True)
+                    result_str = json.dumps({"error": str(exc)})
+                    
+                # Clean the text to be spoken (remove the tool tag)
+                clean_text = re.sub(r"<function=[^>]+>.*?</function>", "", text_content, flags=re.DOTALL).strip()
+                
+                # If there's content before/after the tool, we save it
+                if clean_text:
+                    response_text = clean_text
+                    
+                # Append a fake tool flow to messages for context
+                messages.append({
+                    "role": "assistant",
+                    "content": text_content
+                })
+                
+                messages.append({
+                    "role": "user",  # Groq text only mode doesn't support 'tool' role easily without passing back IDs
+                    "content": f"System Notice - A função '{fn_name}' foi executada e retornou: {result_str}. Confirme brevemente o que aconteceu se necessário, ou ignore se já avisou."
+                })
+                
+                if clean_text:
+                    # Se ele falou algo antes de chamar, já consideramos q respondeu e retornamos
+                    logger.debug("Returning early after inline tool because text was spoken.")
+                    break
+                else:
+                    # Se não falou nada, deixa dar loop pra gerar resposta conversacional
+                    continue
+
             # ── Final text response ───────────────────────────────────────────
-            response_text = msg.content or ""
+            response_text = text_content
             logger.debug("Final Groq response (%d chars).", len(response_text))
             break
 
