@@ -23,6 +23,9 @@ tinydb>=4.8.0                  # JSON-based lightweight DB for conversation memo
 # --- System Monitoring ---
 psutil>=5.9.8                  # CPU, RAM, process monitoring
 
+# --- Media ---
+spotipy>=2.23.0                # Spotify Web API client
+
 # --- Web & HTTP ---
 httpx>=0.27.0                  # Async HTTP client (weather API, web requests)
 ddgs>=9.11.2                   # DuckDuckGo search (modern library)
@@ -32,7 +35,7 @@ beautifulsoup4>=4.12.0         # HTML parsing for read_website tool
 # --- Screen & Vision ---
 Pillow>=10.3.0                 # Screenshot capture support
 mss>=9.0.1                     # Fast screenshot capture for Vision
-google-generativeai>=0.7.0     # Gemini Vision API client
+google-genai>=0.3.0            # Gemini Vision API client
 chromadb>=0.5.0                # Vector database for long-term memory
 
 # --- OS Automation ---

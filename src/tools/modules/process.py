@@ -24,13 +24,18 @@ async def open_application(app_name: str) -> dict[str, Any]:
     # Map common friendly names to executables
     app_map: dict[str, str] = {
         "chrome": "chrome",
+        "google chrome": "chrome",
         "firefox": "firefox",
         "edge": "msedge",
         "vscode": "code",
         "vs code": "code",
+        "visual studio code": "code",
         "notepad": "notepad",
+        "bloco de notas": "notepad",
         "explorer": "explorer",
+        "arquivos": "explorer",
         "calculator": "calc",
+        "calculadora": "calc",
         "terminal": "wt",
         "powershell": "powershell",
         "paint": "mspaint",

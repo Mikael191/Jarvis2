@@ -7,7 +7,7 @@ Runs in a background thread and signals the main event loop via asyncio.Event.
 import asyncio
 import logging
 import threading
-from typing import Callable, Coroutine, Any
+from typing import Callable, Coroutine, Any, Optional
 
 import pvporcupine
 import pvrecorder
