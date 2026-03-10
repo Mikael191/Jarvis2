@@ -223,6 +223,17 @@ GROQ_TOOLS: list[dict] = [
         ["action"],
     ),
     _fn(
+        "get_weather",
+        "Get the current weather and forecast for a city.",
+        {
+            "city": {
+                "type": "string",
+                "description": "City name, e.g. 'São Paulo' or 'Curitiba'",
+            }
+        },
+        ["city"],
+    ),
+    _fn(
         "control_smart_home",
         "Control a smart home device or IoT service via local Webhook/Home Assistant.",
         {
@@ -311,6 +322,7 @@ class ToolExecutor:
         "execute_powershell": run_powershell,
         "set_reminder": reminder.set_reminder,
         "control_media": media.control_media,
+        "get_weather": web.get_weather,
         "control_smart_home": smart_home.control_smart_home,
         "search_local_files": files.search_local_files,
         "read_youtube_transcript": youtube.read_youtube_transcript,

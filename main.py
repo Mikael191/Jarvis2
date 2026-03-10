@@ -177,7 +177,8 @@ class JarvisApp:
         from src.tools.modules import spotify
 
         # Inject OpenWeatherMap key and VisionSystem into the tools module
-        windows_os._OPENWEATHERMAP_API_KEY = config.openweathermap_api_key
+        from src.tools.modules import web
+        web._OPENWEATHERMAP_API_KEY = config.openweathermap_api_key
 
         self._vision = VisionSystem(gemini_api_key=config.gemini_api_key)
         windows_os._VISION_SYSTEM = self._vision
@@ -328,8 +329,11 @@ class JarvisApp:
     async def _proactive_loop(self) -> None:
         from datetime import datetime
         import time
+        import psutil
 
         logger.info("Proactive loop started.")
+        last_alert_time = 0
+
         while True:
             await asyncio.sleep(60)  # Only check conditions once per minute
 
@@ -393,16 +397,44 @@ class JarvisApp:
                 continue
 
             now = datetime.now()
+            now_ts = time.time()
+
+            # 1. High CPU/RAM Alerts
+            # Check CPU over a 1 second blocking interval in a thread to get an accurate reading
+            cpu = await asyncio.to_thread(psutil.cpu_percent, 1.0)
+            ram = psutil.virtual_memory().percent
+
+            # If critical and we haven't alerted in the last 15 minutes (900 seconds)
+            if (cpu > 90 or ram > 90) and (now_ts - last_alert_time) > 900:
+                self._is_processing = True
+                try:
+                    prompt = f"System Alert: CPU {cpu}% | RAM {ram}%. O uso do sistema está crítico. Avise o usuário e ofereça ajuda para fechar processos pesados (seja conciso)."
+                    ai_response = await self._groq.send_message(prompt, None)
+                    if ai_response:
+                        self._log("jarvis", "Aviso de Sistema: " + ai_response)
+                        self._set_state("speaking")
+                        await self._tts.speak(ai_response)
+                        self._set_state("idle")
+                        last_alert_time = now_ts
+                        continue # Skip time-based greeting if we just gave a critical alert
+                except Exception as e:
+                    logger.error("Proactive alert error: %s", e)
+                finally:
+                    self._is_processing = False
+
+            # 2. Time-based Proactive Greetings
             if now.minute == 0 and now.hour in (8, 12, 15, 18, 20):
                 self._is_processing = True
                 try:
-                    prompt = f"System Event: It is {now.hour}:00. Dê uma saudação proativa e curta."
+                    prompt = f"System Event: It is {now.hour}:00. Dê uma saudação proativa e curta baseada no horário atual."
                     ai_response = await self._groq.send_message(prompt, None)
                     if ai_response:
                         self._log("jarvis", "Ação Proativa: " + ai_response)
+                        self._set_state("speaking")
                         await self._tts.speak(ai_response)
+                        self._set_state("idle")
                 except Exception as e:
-                    logger.error("Proactive error: %s", e)
+                    logger.error("Proactive greeting error: %s", e)
                 finally:
                     self._is_processing = False
 
